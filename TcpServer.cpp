@@ -115,7 +115,6 @@ void TcpServer::printPortAddress()
     ZeroMemory(service, NI_MAXHOST);
 
     // Convert the network address into the string of characters
-    std::cout << "The host address is " << host << std::endl;
     if (getnameinfo((sockaddr*)&client_address_, client_size, host, NI_MAXHOST, service, NI_MAXSERV, 0) == 0) {
         std::cout << std::endl << "The host is conected to the PORT number: " << service << std::endl;
     }

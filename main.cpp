@@ -16,6 +16,7 @@ int main() {
     tcp_server->createSocket(tcp_socket_port_number);
     // Switch on the listening mode
     tcp_server->socketListen();
+    tcp_server->printPortAddress();
     
     // Close the listening socket after we got the client
     tcp_server->closeListSocket();
