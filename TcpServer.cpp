@@ -1,4 +1,5 @@
 #include <WS2tcpip.h>
+#include <fstream>
 
 #include "TcpServer.h"
 
@@ -57,7 +58,7 @@ void TcpServer::socketListen()
 void TcpServer::check_socket(SOCKET& socket)
 {
     if (socket == INVALID_SOCKET) {
-        std::cout << std::endl << "The TCP socket is invalid" << std::endl;
+        std::cout << std::endl << "The TCP socket is invalid due to the following error: " << WSAGetLastError() << std::endl;
         exit(0);
     }
     else if (socket == EAGAIN) {
@@ -122,4 +123,85 @@ void TcpServer::printPortAddress()
         inet_ntop(AF_INET, &client_address_.sin_addr, host, NI_MAXHOST);
         std::cout << std::endl << "The host is conected to the PORT number: " << ntohs(client_address_.sin_port) << std::endl;
     }
+}
+
+/* This method sends a file requested by a cliend and returns
+the file size if succeded. If not, returns an error code:
+-1 if cannot open the file for input
+-2 if cannot send the length of the file
+-3 if cannot send the file
+*/
+int TcpServer::sendFile(const std::string& fileName) {
+
+    int chunkSize = 64 * 1024;
+    const int fileSize = getFileSize(fileName);
+    if (fileSize < 0) { 
+        std::cout << "Cannot open this file for input";
+        return -1; }
+
+    std::ifstream file(fileName, std::ifstream::binary);
+    if (file.fail()) { 
+        std::cout << "Cannot open this file for input";
+        return -1; }
+
+    if (sendBuffer(client_socket_, reinterpret_cast<const char*>(&fileSize),
+        sizeof(fileSize)) != sizeof(fileSize)) {
+        std::cout << "Cannot send the length of the file";
+        return -2;
+    }
+
+    char* buffer = new char[chunkSize];
+    bool errored = false;
+    int i = fileSize;
+    while (i != 0) {
+        const int ssize = __min(i, (int)chunkSize);
+        if (!file.read(buffer, ssize)) { errored = true; break; }
+        const int l = sendBuffer(client_socket_, buffer, (int)ssize);
+        if (l < 0) { errored = true; break; }
+        i -= l;
+    }
+    delete[] buffer;
+
+    file.close();
+
+    if (errored == true) {
+        std::cout << "Cannot send the file";
+        return -3;
+    }
+    else {
+        return fileSize;
+    }
+}
+
+/*
+    Determines the size of the file
+*/
+int TcpServer::getFileSize(const std::string& fileName) {
+
+    FILE* f;
+    if (fopen_s(&f, fileName.c_str(), "rb") != 0) {
+        return -1;
+    }
+    _fseeki64(f, 0, SEEK_END);
+    const int len = _ftelli64(f);
+    fclose(f);
+    return len;
+}
+
+/*
+    This method sends data in buffer until bufferSize value is achieved
+*/
+int TcpServer::sendBuffer(SOCKET s, const char* buffer, int bufferSize) {
+
+    int chunkSize = 4 * 1024;
+    int i = 0;
+    while (i < bufferSize) {
+        const int result = send(s, &buffer[i], __min(chunkSize, bufferSize - i), 0);
+        if (result < 0) { 
+            // if result < 0, this means an error occured
+            return result; 
+        } 
+        i += result;
+    }
+    return i;
 }
